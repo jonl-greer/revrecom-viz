@@ -3,7 +3,7 @@
 
 import * as d3 from 'd3';
 import { districtCells } from './chain.js';
-import { COLORS, DISTRICT_COLORS } from './colors.js';
+import { COLORS, DISTRICT_COLORS, mergedColor } from './colors.js';
 import { CELLS, EDGES, N, NEIGHBORS, rc } from './grid.js';
 
 // Phase durations in ms at speed 1 (equal to the Manim scene at SPEED = 0.5).
@@ -162,7 +162,7 @@ export class GridAnimator {
       this.fadeOut(oldSeams, 'merge'),
       this.fadeOut(hl, 'merge'),
       done(this.t(merged, 'merge').attr('opacity', 1)),
-      done(this.t(this.cellSel(region), 'merge').attr('fill', COLORS.merged)),
+      done(this.t(this.cellSel(region), 'merge').attr('fill', mergedColor(d1, d2))),
     ]);
 
     // 3. one spanning tree: nodes pop in, edges draw

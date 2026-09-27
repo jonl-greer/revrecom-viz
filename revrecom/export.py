@@ -7,6 +7,7 @@ Ordering (this is the histogram order on the page):
   plans   : by probability, high to low; ties by orbit (so symmetric plans sit together)
   duals   : by probability, high to low
   cut edges: numerical
+  curvature: negative, zero, positive
 Ids are positions in these orders.
 """
 
@@ -14,6 +15,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from .curvature import SIGNS, edge_curvatures, reference_transition_matrix, sign
 from .enumerate import cut_edge_count, dual_class, enumerate_plans, orbit_key, weight
 
 OUT = Path(__file__).resolve().parent.parent / "web" / "src" / "lib" / "data" / "plans.json"
@@ -51,6 +53,12 @@ def build_tables():
     cut_values = sorted(cut_pi)
     cut_id = {c: i for i, c in enumerate(cut_values)}
 
+    kappa = edge_curvatures(reference_transition_matrix(keys))
+    sign_id = {s: i for i, s in enumerate(SIGNS)}
+    sign_count = defaultdict(int)
+    for k in kappa.values():
+        sign_count[sign(k)] += 1
+
     r = lambda x: round(x, 12)
     return {
         "generated_by": "python -m revrecom.export",
@@ -71,6 +79,15 @@ def build_tables():
             for d in dual_order
         ],
         "cut_edges": [{"id": cut_id[c], "value": c, "pi": r(cut_pi[c])} for c in cut_values],
+        "curvature": [
+            {"id": sign_id[s], "sign": s, "edges": sign_count[s]}
+            for s in SIGNS
+        ],
+        "metagraph_edges": sorted((
+            {"a": min(plan_id[keys[i]], plan_id[keys[j]]), "b": max(plan_id[keys[i]], plan_id[keys[j]]),
+             "kappa": r(k), "sign": sign_id[sign(k)]}
+            for (i, j), k in kappa.items()
+        ), key=lambda e: (e["a"], e["b"])),
     }
 
 
@@ -78,8 +95,10 @@ def main():
     tables = build_tables()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(tables, indent=1) + "\n")
+    signs = ", ".join(f"{c['edges']} {c['sign']}" for c in tables["curvature"])
     print(f"wrote {OUT}: {len(tables['plans'])} plans, {len(tables['orbits'])} orbits, "
-          f"{len(tables['duals'])} dual classes, cut edges {[c['value'] for c in tables['cut_edges']]}")
+          f"{len(tables['duals'])} dual classes, cut edges {[c['value'] for c in tables['cut_edges']]}, "
+          f"{len(tables['metagraph_edges'])} metagraph edges ({signs})")
 
 
 if __name__ == "__main__":

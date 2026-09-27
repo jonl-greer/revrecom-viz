@@ -24,6 +24,24 @@ test('tables have the expected sizes', () => {
   assert.deepEqual(tables.cut_edges.map((c) => c.value), [8, 10, 11, 12]);
 });
 
+test('every move crosses a metagraph edge with a curvature sign', () => {
+  assert.equal(tables.metagraph_edges.length, 372);
+  assert.deepEqual(tables.curvature.map((c) => c.edges), [216, 16, 140]);
+  const rng = makeRng(1);
+  let plan = initialPlan('strips');
+  let moves = 0;
+  for (let i = 0; i < 20000; i++) {
+    const ev = revrecomStep(plan, rng);
+    const a = tables.lookup(plan).id, b = tables.lookup(ev.newPlan).id;
+    if (a !== b) {
+      moves++;
+      assert.ok(tables.edge(a, b), `no metagraph edge ${a}-${b}`);
+    }
+    plan = ev.newPlan;
+  }
+  assert.ok(moves > 0);
+});
+
 test('every step lands on a known, valid plan', () => {
   const rng = makeRng(0);
   let plan = initialPlan('strips');

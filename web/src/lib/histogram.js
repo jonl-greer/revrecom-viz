@@ -17,15 +17,17 @@ export class HistogramChart {
    * @param opts.axis    'none' | 'labels' | 'thumbs' | 'glyphs'
    * @param opts.axisData per-bin label text / plan key / glyph name
    * @param opts.groups  optional per-bin group id, drawn as an alternating band (orbits)
+   * @param opts.shadow  draw the ground truth behind the bars (bins then need pi)
    * @param opts.onhover (index | null, event) => void
    */
-  constructor(svgEl, { bins, axis = 'none', axisData = [], groups = null, width, height, onhover }) {
+  constructor(svgEl, { bins, axis = 'none', axisData = [], groups = null, shadow = true, width, height, onhover }) {
     this.bins = bins;
+    this.hasShadow = shadow;
     this.width = width;
     this.height = height;
     this.m = { top: 18, right: 4, left: 44, bottom: AXIS_SPACE[axis] + (groups ? 7 : 0) };
     this.innerH = height - this.m.top - this.m.bottom;
-    this.maxPi = d3.max(bins, (b) => b.pi);
+    this.maxPi = shadow ? d3.max(bins, (b) => b.pi) : null;
 
     const svg = d3.select(svgEl).attr('viewBox', `0 0 ${width} ${height}`);
     svg.selectAll('*').remove();
@@ -42,7 +44,7 @@ export class HistogramChart {
     const gBottom = g.append('g').attr('transform', `translate(0,${this.innerH})`);
     this.gHover = g.append('g');
 
-    this.shadows = this.gShadows.selectAll('rect').data(bins).join('rect')
+    this.shadows = this.gShadows.selectAll('rect').data(shadow ? bins : []).join('rect')
       .attr('x', (_, i) => this.x(i)).attr('width', this.x.bandwidth()).attr('fill', COLORS.shadow);
     const bw = this.x.bandwidth() * this.barFrac;
     this.barX = (i) => this.x(i) + (this.x.bandwidth() - bw) / 2;
@@ -101,8 +103,8 @@ export class HistogramChart {
   yScale(scale, maxObserved) {
     if (scale === 'log') return d3.scaleLog().domain([LOG_MIN, 1]).range([this.innerH, 0]).clamp(true);
     // fixed to the ground truth's range so the shadows never jump; taller bars are clipped
-    // at the top and labelled with their value
-    const top = Math.ceil((this.maxPi * 1.15) / 0.05) * 0.05;
+    // at the top and labelled with their value. Without a ground truth, the full 0-100%.
+    const top = this.hasShadow ? Math.ceil((this.maxPi * 1.15) / 0.05) * 0.05 : 1;
     return d3.scaleLinear().domain([0, top]).range([this.innerH, 0]).clamp(true);
   }
 

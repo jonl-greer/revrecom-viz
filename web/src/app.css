@@ -132,3 +132,6 @@ footer { margin-top: 44px; max-width: 75ch; font-size: 0.85rem; color: var(--mut
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto; }
 }
+
+.metagraph { margin-top: 40px; }
+.metagraph .sub { margin-bottom: 10px; }

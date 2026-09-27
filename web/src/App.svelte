@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import DualGlyph from './lib/components/DualGlyph.svelte';
   import Histogram from './lib/components/Histogram.svelte';
+  import Metagraph from './lib/components/Metagraph.svelte';
   import PlanThumb from './lib/components/PlanThumb.svelte';
   import { initialPlan, revrecomStep } from './lib/chain.js';
   import data from './lib/data/plans.json';
@@ -20,23 +21,28 @@
   let turbo = $state(false);        // skip the grid animation
   let turboExp = $state(2);         // steps per frame = 10^turboExp
   let playing = $state(false);
-  let scales = $state({ plans: 'linear', orbits: 'linear', duals: 'linear', cuts: 'linear' });
+  let scales = $state({ plans: 'linear', orbits: 'linear', duals: 'linear', cuts: 'linear', curvature: 'linear' });
   const stepsPerFrame = $derived(Math.max(1, Math.round(10 ** turboExp)));
 
   // ---------- chain state ----------
   let plan = initialPlan('strips');
+  let planId = -1;
   let rng = makeRng(379);
   let step = $state(0);
   let accepted = $state(0);
+  let moves = $state(0);            // steps that changed the plan, i.e. crossed a metagraph edge
   let version = $state(0);
-  let drops = $state({ plans: -1, orbits: -1, duals: -1, cuts: -1 });
+  const hops = [];                  // edges crossed since the metagraph last drew
+  let resets = $state(0);
+  let drops = $state({ plans: -1, orbits: -1, duals: -1, cuts: -1, curvature: -1 });
   const counts = {
     plans: new Float64Array(tables.plans.length),
     orbits: new Float64Array(tables.orbits.length),
     duals: new Float64Array(tables.duals.length),
     cuts: new Float64Array(tables.cut_edges.length),
+    curvature: new Float64Array(tables.curvature.length),
   };
-  const NO_DROPS = { plans: -1, orbits: -1, duals: -1, cuts: -1 };
+  const NO_DROPS = { plans: -1, orbits: -1, duals: -1, cuts: -1, curvature: -1 };
 
   let gridEl;
   let animator;
@@ -53,6 +59,8 @@
     };
   });
   const dropMs = $derived(turbo || reducedMotion ? 0 : 420 / speed);
+  // time for the metagraph ball to travel one edge
+  const hopMs = $derived(reducedMotion ? 0 : turbo ? 150 : 420 / speed);
 
   function record(ev) {
     plan = ev.newPlan;
@@ -63,15 +71,23 @@
     counts.orbits[p.orbit]++;
     counts.duals[p.dual]++;
     counts.cuts[p.cut_bin]++;
-    return p;
+    const prev = planId;
+    const edge = p.id === prev ? null : tables.edge(prev, p.id);
+    planId = p.id;
+    if (edge) {
+      hops.push({ from: prev, to: p.id, kappa: edge.kappa });
+      moves += 1;
+      counts.curvature[edge.sign]++;
+    }
+    return { p, edge };
   }
 
   async function animatedStep(token) {
     const ev = revrecomStep(plan, rng);
     await animator.animate(ev, speed);
     if (token !== runToken) return;
-    const p = record(ev);
-    drops = reducedMotion ? NO_DROPS : { plans: p.id, orbits: p.orbit, duals: p.dual, cuts: p.cut_bin };
+    const { p, edge } = record(ev);
+    drops = reducedMotion ? NO_DROPS : { plans: p.id, orbits: p.orbit, duals: p.dual, cuts: p.cut_bin, curvature: edge ? edge.sign : -1 };
     version += 1;
   }
 
@@ -115,10 +131,13 @@
     busy = false;
     rng = makeRng(Number(seed) >>> 0);
     plan = initialPlan(start);
+    planId = tables.lookup(plan).id;
     step = 0;
     accepted = 0;
+    moves = 0;
     for (const c of Object.values(counts)) c.fill(0);
     drops = NO_DROPS;
+    resets += 1;
     animator.show(plan);
     version += 1;
   }
@@ -132,6 +151,9 @@
   let hover = $state(null); // { kind, i, x, y }
   let innerWidth = $state(1200);
   let innerHeight = $state(800);
+  const metaHover = (h, event) => {
+    hover = h == null ? null : { kind: h.kind === 'plan' ? 'metaplan' : 'metaedge', i: h.i, x: event.clientX, y: event.clientY };
+  };
   const hoverFor = (kind) => (i, event) => {
     hover = i == null ? null : { kind, i, x: event.clientX, y: event.clientY };
   };
@@ -155,6 +177,24 @@
       return { kind, title: `${d.name[0].toUpperCase()}${d.name.slice(1)}`, glyph: d.name, pi: d.pi, obs: observed(counts.duals), visits: counts.duals[i],
         note: `${d.plans} plans have this district adjacency graph` };
     }
+    if (kind === 'metaplan') {
+      const p = tables.plans[i];
+      return { kind, title: `Plan ${p.id + 1} of 117${p.id === planId ? ' (current)' : ''}`, key: p.key, pi: p.pi,
+        obs: observed(counts.plans), visits: counts.plans[i],
+        note: `${tables.metagraph_edges.filter((e) => e.a === i || e.b === i).length} neighbours in the metagraph` };
+    }
+    if (kind === 'metaedge') {
+      const e = tables.metagraph_edges[i];
+      const [a, b] = [tables.plans[e.a], tables.plans[e.b]];
+      return { kind, title: `Edge between plans ${a.id + 1} and ${b.id + 1}`, keys: [a.key, b.key],
+        lines: [`κ = ${e.kappa.toFixed(4)} (${tables.curvature[e.sign].sign})`] };
+    }
+    if (kind === 'curvature') {
+      const c = tables.curvature[i];
+      return { kind, title: `${c.sign[0].toUpperCase()}${c.sign.slice(1)} curvature`,
+        obs: moves ? counts.curvature[i] / moves : null, visits: counts.curvature[i], of: moves, unit: 'moves',
+        note: `${c.edges} of ${tables.metagraph_edges.length} metagraph edges` };
+    }
     const c = tables.cut_edges[i];
     return { kind, title: `${c.value} cut edges`, pi: c.pi, obs: observed(counts.cuts), visits: counts.cuts[i],
       note: 'Grid edges joining two different districts' };
@@ -164,6 +204,7 @@
   const orbitKeys = tables.orbits.map((o) => tables.plans[o.rep].key);
   const dualNames = tables.duals.map((d) => d.name);
   const cutLabels = tables.cut_edges.map((c) => String(c.value));
+  const curvatureLabels = tables.curvature.map((c) => ({ negative: 'κ < 0', zero: 'κ = 0', positive: 'κ > 0' })[c.sign]);
 
   const HISTS = [
     { id: 'plans', title: 'Plans', sub: '117 plans, most to least likely. The band underneath groups plans by orbit.',
@@ -174,6 +215,8 @@
       bins: tables.duals, height: 200, width: 320, axis: 'glyphs', axisData: dualNames },
     { id: 'cuts', title: 'Cut edges', sub: 'Edges between districts.',
       bins: tables.cut_edges, height: 200, width: 320, axis: 'labels', axisData: cutLabels },
+    { id: 'curvature', title: 'Curvature of edges crossed', sub: 'Ollivier-Ricci sign of the metagraph edge behind each move.',
+      bins: tables.curvature, height: 200, width: 320, axis: 'labels', axisData: curvatureLabels, perMove: true, shadow: false },
   ];
 </script>
 
@@ -250,13 +293,13 @@
                 <button class:on={scales[h.id] === 'log'} onclick={() => (scales[h.id] = 'log')}>Log</button>
               </div>
             </div>
-            <p class="sub">{h.sub} <span class="tv">Distance from target {tv[h.id] == null ? '–' : tv[h.id].toFixed(3)}</span></p>
+            <p class="sub">{h.sub} {#if h.id in tv}<span class="tv">Distance from target {tv[h.id] == null ? '–' : tv[h.id].toFixed(3)}</span>{/if}</p>
           </figcaption>
           <Histogram
             label={h.title}
             bins={h.bins}
             counts={counts[h.id]}
-            total={step}
+            total={h.perMove ? moves : step}
             {version}
             scale={scales[h.id]}
             drop={drops[h.id]}
@@ -264,6 +307,7 @@
             axis={h.axis}
             axisData={h.axisData}
             groups={h.groups}
+            shadow={h.shadow ?? true}
             width={h.width ?? 660}
             height={h.height}
             onhover={hoverFor(h.id)}
@@ -273,15 +317,37 @@
     </section>
   </div>
 
+  <section class="metagraph" aria-label="Metagraph">
+    <div class="title-row">
+      <h2>Metagraph of the 117 plans</h2>
+    </div>
+    <p class="sub">Each node is a plan; each edge is a move the chain can make, coloured by its Ollivier-Ricci curvature. The ball follows the chain.</p>
+    <Metagraph
+      plans={tables.plans}
+      edges={tables.metagraph_edges}
+      current={() => planId}
+      {hops}
+      reset={resets}
+      {version}
+      {hopMs}
+      onhover={metaHover}
+    />
+  </section>
+
   {#if detail}
     <div class="tooltip" style="left: {Math.min(hover.x + 16, innerWidth - 330)}px; top: {Math.min(hover.y + 16, innerHeight - 150)}px">
       {#if detail.key}<PlanThumb key={detail.key} size={64} />{/if}
+      {#if detail.keys}{#each detail.keys as k (k)}<PlanThumb key={k} size={56} />{/each}{/if}
       {#if detail.glyph}<DualGlyph name={detail.glyph} size={56} />{/if}
       <div>
         <strong>{detail.title}</strong>
-        <p>Target {pct(detail.pi)}</p>
-        <p>Observed {pct(detail.obs)} <span class="muted">({int(detail.visits)} of {int(step)} steps)</span></p>
-        <p class="muted">{detail.note}</p>
+        {#if detail.pi != null}<p>Target {pct(detail.pi)}</p>{/if}
+        {#if detail.lines}
+          {#each detail.lines as l (l)}<p>{l}</p>{/each}
+        {:else}
+          <p>Observed {pct(detail.obs)} <span class="muted">({int(detail.visits)} of {int(detail.of ?? step)} {detail.unit ?? 'steps'})</span></p>
+        {/if}
+        {#if detail.note}<p class="muted">{detail.note}</p>{/if}
       </div>
     </div>
   {/if}

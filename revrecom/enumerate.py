@@ -136,3 +136,37 @@ def enumerate_plans():
 
     grow(set(CELLS), [])
     return sorted(keys)
+
+
+# ---------- exact transition matrix ----------
+def transition_matrix(keys):
+    """RevReCom's exact transition matrix on unlabeled plans, rows and columns in `keys` order.
+    The district pair is drawn from all 16 ordered pairs; bad pairs are self-loops."""
+    idx = {k: i for i, k in enumerate(keys)}
+    P = np.zeros((len(keys), len(keys)))
+    for k in keys:
+        D = districts(k)
+        for a in range(NUM_DISTRICTS):
+            for b in range(NUM_DISTRICTS):  # ordered pairs out of 16
+                if a == b or not any(w in D[b] for v in D[a] for w in NEIGHBORS[v]):
+                    continue
+                region = D[a] | D[b]
+                t_region = spanning_tree_count(region)
+                for A in combinations(sorted(region), DISTRICT_SIZE):
+                    A = set(A)
+                    B = region - A
+                    if min(A) != min(region) or not (_connected(A) and _connected(B)):
+                        continue  # count each unordered split once
+                    seam = sum(1 for v in A for w in NEIGHBORS[v] if w in B)
+                    p_tree = spanning_tree_count(A) * spanning_tree_count(B) * seam / t_region
+                    new = [0] * len(CELLS)
+                    for j, d in enumerate(D):
+                        for v in d:
+                            new[v] = j
+                    for v in A:
+                        new[v] = a
+                    for v in B:
+                        new[v] = b
+                    P[idx[k], idx[canonical_key(new)]] += (1 / NUM_DISTRICTS**2) * p_tree * (1 / seam)
+        P[idx[k], idx[k]] += 1 - P[idx[k]].sum()
+    return P

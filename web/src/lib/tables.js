@@ -5,10 +5,14 @@ import { canonicalKey } from './chain.js';
 
 export function buildTables(data) {
   const keyToPlan = new Map(data.plans.map((p) => [p.key, p]));
+  const n = data.plans.length;
+  const edges = new Map(data.metagraph_edges.map((e) => [e.a * n + e.b, e]));
   return {
     ...data,
     /** Plan record for any labelled plan (colours ignored). */
     lookup: (plan) => keyToPlan.get(canonicalKey(plan)),
+    /** Metagraph edge between two plan ids, or undefined if the chain can't move between them. */
+    edge: (i, j) => edges.get(Math.min(i, j) * n + Math.max(i, j)),
   };
 }
 

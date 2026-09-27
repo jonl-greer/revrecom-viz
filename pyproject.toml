@@ -3,7 +3,7 @@ name = "revrecom"
 version = "0.1.0"
 description = "Reversible ReCom on a 4x4 grid: exact enumeration, chain, and visualisation data"
 requires-python = ">=3.10"
-dependencies = ["numpy"]
+dependencies = ["numpy", "scipy"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
