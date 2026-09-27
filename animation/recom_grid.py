@@ -1,21 +1,3 @@
-"""
-Reversible ReCom on a 4x4 grid, animated with Manim Community Edition.
-The chain itself lives in the `revrecom` package, shared with the tests and the data export.
-
-Each step:
-  1. Pick an ordered pair of districts from all 16. Same district or not adjacent -> STAY.
-  2. Merge the pair (purple).
-  3. Draw ONE uniform spanning tree (white). No 4|4 cut edge -> STAY.
-  4. Flash the cut edge pink and cut it.
-  5. Show the proposed split, seam in pink. Accept with probability 1/(seam length):
-     accept -> seam turns black; reject -> seam flashes red, STAY.
-Any STAY is shown by the highlight flashing red.
-
-Render (from the repo root, after `pip install -e .[anim]`):
-    manim -pql animation/recom_grid.py ReComGrid     # quick preview
-    manim -pqh animation/recom_grid.py ReComGrid     # 1080p
-"""
-
 import random
 import sys
 from pathlib import Path
@@ -27,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # works without
 from revrecom.chain import district_cells, revrecom_step, initial_plan  # noqa: E402
 from revrecom.grid import CELLS, N, NEIGHBORS, rc  # noqa: E402
 
-# ============================ CONFIG ============================
+
 SEED = 1217
 START = "strips"          # "strips" or "quadrants"
 NUM_STEPS = 40            # chain steps to animate (self-loops count as steps)

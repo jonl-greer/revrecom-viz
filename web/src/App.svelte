@@ -181,11 +181,8 @@
 
 <main>
   <header>
-    <h1>Reversible ReCom on a 4×4 grid</h1>
+    <h1>RevReCom on 4×4 grid</h1>
     <p class="lede">
-      A Markov chain on the 117 ways to split this grid into four connected districts of four cells.
-      Dark bars show the share of steps the chain has spent in each bin. Grey shadows show the
-      spanning-tree distribution the chain converges to.
     </p>
   </header>
 
@@ -291,9 +288,6 @@
 
   <footer>
     <p>
-      Target: probability proportional to the product of each district's spanning-tree count.
-      Chain: Reversible ReCom (Cannon, Duchin, Randall &amp; Rule, 2022), as in GerryChain.
-      Every step counts toward the bars, including steps where the chain stays put.
     </p>
   </footer>
 </main>
