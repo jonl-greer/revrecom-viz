@@ -1,13 +1,9 @@
 # Reversible ReCom on a 4×4 grid
 
-A live visualisation of the Reversible ReCom (RevReCom) Markov chain on a 4×4 grid split
-into four connected districts of four cells. Each step is animated (pick two districts,
-merge, draw a spanning tree, cut, accept or reject), while four histograms fill in beside it:
-plans, D4 orbits, district dual graphs, and cut-edge counts. Each histogram shows the
-ground-truth spanning-tree distribution as a grey shadow, so you can watch the chain
-converge to it.
+Visualization of the Reversible ReCom (RevReCom) Markov chain on a 4×4 grid split
+into four connected districts of four cells. 
 
-## What's in the repo
+## In this repo
 
 ```
 revrecom/                 Python package: the source of truth
@@ -31,64 +27,11 @@ The Python side computes the ground truth once and exports it as JSON. The brows
 own copy of the chain (a line-for-line port) and looks each plan up in that JSON. Both
 sides are tested against the same numbers.
 
-## Ground truth
-
-| | count | notes |
-|---|---|---|
-| plans | 117 | weight = product of each district's spanning-tree count (2×2 district: 4, any other shape: 1) |
-| D4 orbits | 22 | plans equal up to rotation/reflection |
-| dual graphs | 5 | diamond 45.9%, 4-cycle 40.4%, paw 11.0%, K4 2.4%, path 0.3% |
-| cut edges | 8, 10, 11, 12 | 39.1%, 34.3%, 14.7%, 11.9% |
-
-The four 2×2 squares alone have probability 256/654 ≈ 39.1%.
-`tests/test_enumeration.py` builds RevReCom's exact 117×117 transition matrix and checks its
-stationary distribution equals this to ~1e-13.
-
-## Running it
-
-**Python** (3.10+):
-
-```bash
-pip install -e ".[dev]"
-pytest -q
-python -m revrecom.export     # only needed if you change the enumeration
-```
-
-**Website** (Node 20+):
-
 ```bash
 cd web
 npm install
 npm run dev        # http://localhost:5173
-npm test           # JS chain tests
-npm run build      # static site in web/dist
 ```
 
-**Manim video**:
 
-```bash
-pip install -e ".[anim]"
-manim -pql animation/recom_grid.py ReComGrid    # preview
-manim -pqh animation/recom_grid.py ReComGrid    # 1080p
-```
-
-Settings (seed, number of steps, SPEED, start) are at the top of the file.
-
-## Publishing on GitHub Pages
-
-1. Create an empty repository on GitHub and push this folder to its `main` branch.
-2. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**.
-3. The `Deploy to GitHub Pages` workflow runs on every push to `main`. The site appears at
-   `https://<your-username>.github.io/<repo-name>/`.
-
-Asset paths are relative (`base: './'` in `web/vite.config.js`), so any repository name works.
-
-## Notes
-
-- Every step counts toward the histograms, including self-loops. The time average only
-  converges to the target if the steps where the chain stays put are counted.
-- The browser uses a seeded mulberry32 generator and Python uses `random.Random`, so the same
-  seed gives different runs on the page and in the video.
-- The chain draws its district pair from all 16 ordered pairs, as GerryChain does. Pairs
-  that are the same district or not adjacent are self-loops, not re-draws; re-drawing
   would change the stationary distribution.
