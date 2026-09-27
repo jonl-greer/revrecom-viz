@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Manim output
+media/
+
+# Web
+web/node_modules/
+web/dist/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
